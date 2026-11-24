@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#065f46" />
+  <meta name="description" content="Sistem Absensi Digital MA Nahdhiyah Talun - Siswa, Guru, Tendik, Wali Kelas & Portal Wali Murid" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/png" href="./icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <title>Absensi Digital — MA Nahdhiyah Talun</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #0f172a; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea { position: fixed; left: 0; top: 0; width: 100%; background: white; padding: 16px; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- TOP NAVBAR -->
+  <header class="bg-emerald-900 text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-700/80 border border-emerald-400/30 flex items-center justify-center shadow-inner">
+          <i data-lucide="qr-code" class="w-6 h-6 text-emerald-300"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-extrabold text-base sm:text-lg tracking-tight leading-none">MA NAHDHIYAH TALUN</h1>
+            <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-400 text-emerald-950">Absensi v1.0</span>
+          </div>
+          <p class="text-xs text-emerald-200 mt-0.5" id="liveClock">Memuat waktu...</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 flex-wrap">
+        <button id="btnInstallPwa" onclick="installPWA()" class="hidden items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-bold text-xs px-3 py-2 rounded-lg shadow transition">
+          <i data-lucide="smartphone" class="w-4 h-4"></i> Install Aplikasi
+        </button>
+
+        <div class="flex items-center gap-1.5 bg-emerald-950/70 border border-emerald-700 px-2.5 py-1.5 rounded-lg">
+          <i data-lucide="user-check" class="w-4 h-4 text-emerald-300"></i>
+          <select id="roleSwitcher" onchange="switchRole(this.value)" class="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer">
+            <option value="admin" class="text-slate-900">Peran: Admin / Operator</option>
+            <option value="piket" class="text-slate-900">Peran: Guru Piket</option>
+            <option value="walikelas" class="text-slate-900">Peran: Wali Kelas (XII IPA 1)</option>
+            <option value="guru" class="text-slate-900">Peran: Guru & Tendik</option>
+            <option value="walimurid" class="text-slate-900">Peran: Siswa / Wali Murid</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- NAVIGATION TABS -->
+    <nav id="mainNav" class="bg-emerald-950/60 border-t border-emerald-800/80 overflow-x-auto no-scrollbar">
+      <div class="max-w-7xl mx-auto px-4 flex items-center gap-1 py-1.5" id="navTabsContainer"></div>
+    </nav>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
+    <!-- Toast Alert -->
+    <div id="toastBox" class="fixed bottom-5 right-5 z-50 hidden max-w-sm w-full rounded-xl shadow-2xl border p-4 transition-all"></div>
+
+    <!-- SECTION: DASHBOARD -->
+    <section id="tab-dashboard" class="space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-extrabold text-slate-800">Dashboard Kehadiran Real-Time</h2>
+          <p class="text-sm text-slate-500">Pantauan langsung kehadiran Siswa, Guru, & Tenaga Kependidikan MA Nahdhiyah Talun</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="switchTab('scan')" class="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition">
+            <i data-lucide="scan-line" class="w-4 h-4"></i> Buka Kios Scan
+          </button>
+          <button onclick="resetDemoData()" class="inline-flex items-center gap-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold px-3 py-2.5 rounded-xl transition">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset Demo
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Cards Siswa -->
+      <div>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">Statistik Kehadiran Siswa Hari Ini</h3>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" id="kpiSiswaGrid"></div>
+      </div>
+
+      <!-- KPI Cards Guru & Tendik -->
+      <div>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">Statistik Guru & Tenaga Kependidikan</h3>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="kpiGuruGrid"></div>
+      </div>
+
+      <!-- Recent Activity & Quick Actions -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="activity" class="w-4 h-4 text-emerald-600"></i> Aktivitas Absensi Terbaru
+            </h3>
+            <span class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full" id="todayDateBadge"></span>
+          </div>
+          <div class="divide-y divide-slate-100 max-h-[380px] overflow-y-auto" id="recentLogsList"></div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <h3 class="font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="clipboard-edit" class="w-4 h-4 text-amber-600"></i> Catat Status Manual Cepat
+          </h3>
+          <p class="text-xs text-slate-500">Gunakan untuk mencatat siswa/guru yang Sakit, Izin, Alpha, atau Dinas Luar (otomatis kirim notifikasi WA ke Wali Murid & Wali Kelas).</p>
+          <form onsubmit="submitManualStatus(event)" class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Pilih Siswa / Guru / Tendik</label>
+              <select id="manualPersonSelect" required class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Status Kehadiran</label>
+              <select id="manualStatusSelect" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="Hadir">Hadir (Masuk)</option>
+                <option value="Pulang">Absen Pulang</option>
+                <option value="Sakit">Sakit</option>
+                <option value="Izin">Izin</option>
+                <option value="Alpha">Alpha</option>
+                <option value="Dinas Luar">Dinas Luar (Guru/Tendik)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Keterangan (Opsional)</label>
+              <input type="text" id="manualNoteInput" placeholder="Contoh: Surat dokter terlampir" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+            </div>
+            <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm py-2.5 rounded-xl shadow transition">
+              Simpan & Kirim Notifikasi WA
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: SCAN KIOSK -->
+    <section id="tab-scan" class="hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 class="text-lg font-extrabold text-slate-800">Kios Scan Barcode & QR Code</h2>
+              <p class="text-xs text-slate-500">Mendukung USB Barcode Scanner (Auto-Focus) & Kamera Perangkat</p>
+            </div>
+            <div class="flex bg-slate-100 p-1 rounded-xl">
+              <button type="button" id="modeMasukBtn" onclick="setScanMode('MASUK')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-700 text-white shadow">ABSEN MASUK</button>
+              <button type="button" id="modePulangBtn" onclick="setScanMode('PULANG')" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600">ABSEN PULANG</button>
+            </div>
+          </div>
+
+          <!-- Input Manual / USB Scanner -->
+          <form onsubmit="handleScanSubmit(event)" class="bg-emerald-50/70 border-2 border-emerald-500/40 rounded-2xl p-4 space-y-2">
+            <label class="block text-xs font-bold uppercase tracking-wider text-emerald-800">Scan Kartu / Ketik NISN atau PegID</label>
+            <div class="flex gap-2">
+              <input type="text" id="scanInput" autocomplete="off" placeholder="Arahkan scanner ke barcode atau ketik NISN/PegID..." class="flex-1 bg-white border border-emerald-300 rounded-xl px-4 py-3 text-base font-bold tracking-wider focus:ring-2 focus:ring-emerald-600 focus:outline-none" />
+              <button type="submit" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-5 py-3 rounded-xl shadow transition">Proses</button>
+            </div>
+            <div class="flex flex-wrap gap-1.5 pt-1">
+              <span class="text-[11px] text-slate-500 mr-1">Simulasi Cepat:</span>
+              <button type="button" onclick="triggerQuickScan('0081234501')" class="text-[11px] bg-white border border-slate-200 hover:border-emerald-500 px-2 py-0.5 rounded-md font-semibold">Siswa: Ahmad Fauzi</button>
+              <button type="button" onclick="triggerQuickScan('0081234502')" class="text-[11px] bg-white border border-slate-200 hover:border-emerald-500 px-2 py-0.5 rounded-md font-semibold">Siswa: Siti Aisyah</button>
+              <button type="button" onclick="triggerQuickScan('PEG-202601')" class="text-[11px] bg-white border border-slate-200 hover:border-emerald-500 px-2 py-0.5 rounded-md font-semibold">Guru: Drs. H. Mahfudz</button>
+            </div>
+          </form>
+
+          <!-- Camera Scanner Box -->
+          <div class="border border-slate-200 rounded-2xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <i data-lucide="camera" class="w-4 h-4 text-emerald-600"></i> Pemindai Kamera HP / Laptop
+              </span>
+              <div class="flex gap-2">
+                <button type="button" id="btnStartCam" onclick="startCameraScanner()" class="text-xs font-bold bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-800">Aktifkan Kamera</button>
+                <button type="button" id="btnStopCam" onclick="stopCameraScanner()" class="hidden text-xs font-bold bg-rose-600 text-white px-3 py-1.5 rounded-lg hover:bg-rose-700">Matikan</button>
+              </div>
+            </div>
+            <div id="reader" class="w-full rounded-xl overflow-hidden bg-slate-900/5 min-h-[180px] flex items-center justify-center text-xs text-slate-400">
+              Klik "Aktifkan Kamera" untuk memindai QR / Barcode kartu
+            </div>
+          </div>
+        </div>
+
+        <!-- Feedback Hasil Scan -->
+        <div class="lg:col-span-5 space-y-4">
+          <div id="scanFeedbackCard" class="bg-white rounded-2xl border-2 border-slate-200 shadow-sm p-6 text-center space-y-3">
+            <div class="w-16 h-16 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+              <i data-lucide="scan" class="w-8 h-8"></i>
+            </div>
+            <h3 class="font-bold text-slate-700">Menunggu Pemindaian Kartu</h3>
+            <p class="text-xs text-slate-500">Hasil absensi, status ketepatan waktu, dan status notifikasi WhatsApp ke Wali Murid akan muncul di sini secara instan.</p>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 space-y-1.5">
+            <p class="font-bold flex items-center gap-1.5"><i data-lucide="shield-check" class="w-4 h-4 text-amber-600"></i> Validasi Anti-Duplikasi Aktif</p>
+            <p>Sistem otomatis mencegah absen masuk atau pulang ganda pada hari yang sama dan menyesuaikan status <strong>Tepat Waktu / Terlambat</strong> berdasarkan jam masuk sekolah (<span id="infoJamMasuk">07:00</span>).</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: WALI KELAS -->
+    <section id="tab-walikelas" class="hidden space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-extrabold text-slate-800">Dashboard Wali Kelas</h2>
+          <p class="text-sm text-slate-500">Pantauan siswa binaan, notifikasi izin otomatis, dan verifikasi surat keterangan wali murid</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-xs font-bold text-slate-600">Pilih Kelas:</label>
+          <select id="waliKelasFilter" onchange="renderWaliKelas()" class="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-semibold">
+            <option value="XII IPA 1">XII IPA 1 (Wali: Ust. Ahmad Fauzan, M.Pd)</option>
+            <option value="XI IPS 1">XI IPS 1 (Wali: Ustdz. Nurul Hidayah, S.Pd)</option>
+            <option value="X-A">X-A (Wali: Drs. H. Mahfudz)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Verifikasi Dokumen Izin dari Wali Murid -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100 bg-amber-50/60 flex items-center justify-between">
+          <h3 class="font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="file-check-2" class="w-4 h-4 text-amber-600"></i> Pengajuan Surat Izin / Dokter dari Wali Murid
+          </h3>
+          <span class="text-xs font-bold text-amber-800 bg-amber-200/70 px-2.5 py-0.5 rounded-full" id="pendingDocCount">0 Menunggu</span>
+        </div>
+        <div class="divide-y divide-slate-100" id="waliKelasDocsList"></div>
+      </div>
+
+      <!-- Daftar Siswa Binaan -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+        <div class="px-5 py-4 border-b border-slate-100">
+          <h3 class="font-bold text-slate-800">Status Kehadiran Siswa Kelas Hari Ini</h3>
+        </div>
+        <table class="w-full text-sm text-left">
+          <thead class="bg-slate-50 text-slate-600 text-xs uppercase">
+            <tr>
+              <th class="px-4 py-3">NISN</th>
+              <th class="px-4 py-3">Nama Siswa</th>
+              <th class="px-4 py-3">Wali Murid & WA</th>
+              <th class="px-4 py-3">Status Hari Ini</th>
+              <th class="px-4 py-3">Aksi Cepat</th>
+            </tr>
+          </thead>
+          <tbody id="waliKelasStudentTable" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION: PORTAL WALI MURID & UPLOAD SURAT -->
+    <section id="tab-walimurid" class="hidden space-y-6">
+      <div class="bg-gradient-to-r from-emerald-800 to-teal-800 text-white rounded-2xl p-6 shadow-md">
+        <h2 class="text-xl font-extrabold">Portal Wali Murid & Siswa — MA Nahdhiyah Talun</h2>
+        <p class="text-sm text-emerald-100 mt-1">Cek riwayat kehadiran putra/putri Anda secara real-time dan unggah Surat Izin / Keterangan Dokter (Maksimal 1 MB).</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Cek Kehadiran -->
+        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <h3 class="font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="search" class="w-4 h-4 text-emerald-600"></i> Cek Riwayat Kehadiran Siswa
+          </h3>
+          <div class="flex gap-2">
+            <select id="portalStudentSelect" onchange="renderPortalWaliMurid()" class="flex-1 border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-semibold"></select>
+          </div>
+          <div id="portalStudentSummary" class="grid grid-cols-4 gap-2 text-center"></div>
+          <div class="border border-slate-100 rounded-xl overflow-hidden">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-50 text-slate-600 uppercase">
+                <tr>
+                  <th class="px-3 py-2.5">Tanggal</th>
+                  <th class="px-3 py-2.5">Masuk</th>
+                  <th class="px-3 py-2.5">Pulang</th>
+                  <th class="px-3 py-2.5">Status</th>
+                </tr>
+              </thead>
+              <tbody id="portalHistoryTable" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Form Upload Data Pendukung Max 1MB -->
+        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <h3 class="font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="upload-cloud" class="w-4 h-4 text-emerald-600"></i> Upload Surat Izin / Keterangan Dokter
+          </h3>
+          <p class="text-xs text-slate-500">Dokumen akan diteruskan otomatis ke <strong>Wali Kelas</strong> dan notifikasi WA konfirmasi akan dikirimkan.</p>
+          <form onsubmit="handleUploadIzin(event)" class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Jenis Ketidakhadiran</label>
+              <select id="uploadJenis" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm">
+                <option value="Sakit">Sakit (Keterangan Dokter / Orang Tua)</option>
+                <option value="Izin">Izin Kepentingan Keluarga</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Keterangan Singkat</label>
+              <textarea id="uploadNote" rows="2" required placeholder="Contoh: Demam sejak semalam, terlampir surat dokter." class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm"></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Lampiran File (JPG, PNG, PDF — Maks. 1 MB)</label>
+              <input type="file" id="uploadFile" accept=".jpg,.jpeg,.png,.pdf" required onchange="validateFileSize(this)" class="w-full text-xs border border-slate-300 rounded-xl p-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700" />
+              <p id="fileSizeInfo" class="text-[11px] text-slate-500 mt-1">Batas ukuran maksimal: 1.00 MB (1.024 KB)</p>
+            </div>
+            <button type="submit" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm py-2.5 rounded-xl shadow transition">
+              Kirim Surat ke Wali Kelas
+            </button>
+          </form>
+
+          <div class="pt-2 border-t border-slate-100">
+            <h4 class="text-xs font-bold text-slate-700 mb-2">Riwayat Dokumen Diunggah</h4>
+            <div id="portalUploadedList" class="space-y-2 max-h-40 overflow-y-auto"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: MASTER DATA & KARTU BARCODE -->
+    <section id="tab-master" class="hidden space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-extrabold text-slate-800">Data Master & Cetak Kartu Barcode</h2>
+          <p class="text-sm text-slate-500">Kelola data Siswa, Guru, Tendik, Import/Export Excel, dan Cetak Kartu ID</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="exportMasterExcel()" class="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Export Excel
+          </button>
+          <button onclick="printBarcodeCards()" class="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl">
+            <i data-lucide="printer" class="w-4 h-4"></i> Cetak Semua Kartu Barcode
+          </button>
+        </div>
+      </div>
+
+      <!-- Form Tambah Data -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <h3 class="font-bold text-sm text-slate-800 mb-3">Tambah Data Siswa / Guru / Tendik Baru</h3>
+        <form onsubmit="addMasterRecord(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+          <select id="newType" class="border border-slate-300 rounded-xl px-3 py-2 text-sm">
+            <option value="Siswa">Siswa</option>
+            <option value="Guru">Guru</option>
+            <option value="Tendik">Tendik</option>
+          </select>
+          <input type="text" id="newId" required placeholder="NISN / PegID" class="border border-slate-300 rounded-xl px-3 py-2 text-sm" />
+          <input type="text" id="newName" required placeholder="Nama Lengkap" class="border border-slate-300 rounded-xl px-3 py-2 text-sm" />
+          <input type="text" id="newUnit" required placeholder="Kelas / Jabatan" class="border border-slate-300 rounded-xl px-3 py-2 text-sm" />
+          <input type="text" id="newWa" required placeholder="No. WA (08xxxx)" class="border border-slate-300 rounded-xl px-3 py-2 text-sm" />
+          <button type="submit" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm rounded-xl px-4 py-2">+ Tambah</button>
+        </form>
+      </div>
+
+      <!-- Tabel Master -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="bg-slate-50 text-slate-600 text-xs uppercase">
+            <tr>
+              <th class="px-4 py-3">Kategori</th>
+              <th class="px-4 py-3">NISN / PegID</th>
+              <th class="px-4 py-3">Nama Lengkap</th>
+              <th class="px-4 py-3">Kelas / Unit</th>
+              <th class="px-4 py-3">Wali Murid & WA (628xxx)</th>
+              <th class="px-4 py-3">Barcode</th>
+              <th class="px-4 py-3">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="masterTableBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION: WHATSAPP GATEWAY & LOG -->
+    <section id="tab-whatsapp" class="hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Konfigurasi Gateway & Template -->
+        <div class="lg:col-span-5 space-y-4">
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                <i data-lucide="webhook" class="w-4 h-4 text-emerald-600"></i> Konfigurasi WA Gateway API
+              </h3>
+              <span id="waBadgeStatus" class="text-[11px] font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">Perlu Token API</span>
+            </div>
+            <p class="text-[11px] text-slate-500">Agar pesan masuk ke WhatsApp sungguhan tanpa buka browser manual, isi <strong>Endpoint URL</strong> dan <strong>API Key / Token</strong> asli dari penyedia gateway (misalnya Fonnte). Jika belum memakai API token, aktifkan mode <strong>Buka WhatsApp Web / Aplikasi</strong>.</p>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Endpoint URL (Fonnte / Wablas / Webhook)</label>
+              <input type="text" id="waEndpoint" value="https://api.fonnte.com/send" onchange="saveGatewayConfig()" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">API Key / Token Device Asli</label>
+              <input type="password" id="waToken" placeholder="Tempel Token API asli di sini..." onchange="saveGatewayConfig()" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Nomor Pengirim / Catatan Device</label>
+              <input type="text" id="waSender" value="6281234567890" onchange="saveGatewayConfig()" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono" />
+            </div>
+            <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer pt-1">
+              <input type="checkbox" id="waAutoWebFallback" onchange="saveGatewayConfig()" class="rounded border-slate-300 text-emerald-700" />
+              Buka WhatsApp (`wa.me`) otomatis jika API token belum diisi / gagal
+            </label>
+            <div class="flex gap-2 pt-1">
+              <input type="text" id="waTestNumber" placeholder="Nomor Tes (0857xxxx / 62857xxxx)" class="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-xs" />
+              <button type="button" onclick="sendTestWA()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl">Kirim Tes Asli</button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+            <h3 class="font-bold text-slate-800 text-sm">Template Pesan Otomatis</h3>
+            <p class="text-[11px] text-slate-500">Variabel: <code>{nama_siswa}</code>, <code>{nisn}</code>, <code>{kelas}</code>, <code>{jam}</code>, <code>{status}</code>, <code>{tanggal}</code></p>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Template Absen Masuk / Pulang</label>
+              <textarea id="tplMasuk" rows="3" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs">Assalamu'alaikum Wr. Wb. Diinformasikan kepada Wali Murid bahwa ananda *{nama_siswa}* ({kelas}) telah melakukan *{status}* di MA Nahdhiyah Talun pada {tanggal} pukul *{jam} WIB*. Terima kasih.</textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Template Notifikasi Izin ke Wali Kelas</label>
+              <textarea id="tplWaliKelas" rows="3" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs">Info Wali Kelas: Siswa *{nama_siswa}* (Kelas {kelas}) tercatat *{status}* pada {tanggal} pukul {jam} WIB. Mohon tindak lanjut.</textarea>
+            </div>
+            <button type="button" onclick="showToast('Template pesan WhatsApp berhasil disimpan!', 'success')" class="w-full bg-slate-900 text-white text-xs font-bold py-2.5 rounded-xl">Simpan Pengaturan Template</button>
+          </div>
+        </div>
+
+        <!-- Log Pengiriman WA -->
+        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="message-square-check" class="w-4 h-4 text-emerald-600"></i> Log Pengiriman WhatsApp Real-Time
+            </h3>
+            <span class="text-xs text-slate-500" id="waLogCounter">0 Pesan</span>
+          </div>
+          <div class="divide-y divide-slate-100 max-h-[540px] overflow-y-auto" id="waLogsContainer"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: LAPORAN & REKAP -->
+    <section id="tab-laporan" class="hidden space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-extrabold text-slate-800">Rekapitulasi & Laporan Kehadiran</h2>
+          <p class="text-sm text-slate-500">Filter riwayat kehadiran dan ekspor ke format Excel (.xlsx) atau Cetak PDF</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="exportReportExcel()" class="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl">
+            <i data-lucide="download" class="w-4 h-4"></i> Unduh Excel (.xlsx)
+          </button>
+          <button onclick="window.print()" class="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl">
+            <i data-lucide="printer" class="w-4 h-4"></i> Cetak / PDF
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <input type="text" id="filterSearch" oninput="renderReportTable()" placeholder="Cari Nama / NISN / PegID..." class="border border-slate-300 rounded-xl px-3 py-2 text-sm" />
+        <select id="filterRole" onchange="renderReportTable()" class="border border-slate-300 rounded-xl px-3 py-2 text-sm">
+          <option value="ALL">Semua Kategori</option>
+          <option value="Siswa">Siswa</option>
+          <option value="Guru">Guru</option>
+          <option value="Tendik">Tendik</option>
+        </select>
+        <select id="filterStatus" onchange="renderReportTable()" class="border border-slate-300 rounded-xl px-3 py-2 text-sm">
+          <option value="ALL">Semua Status</option>
+          <option value="Hadir">Hadir</option>
+          <option value="Terlambat">Terlambat</option>
+          <option value="Sakit">Sakit</option>
+          <option value="Izin">Izin</option>
+          <option value="Alpha">Alpha</option>
+          <option value="Dinas Luar">Dinas Luar</option>
+        </select>
+        <input type="date" id="filterDate" onchange="renderReportTable()" class="border border-slate-300 rounded-xl px-3 py-2 text-sm" />
+      </div>
+
+      <div id="printArea" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+        <div class="p-4 border-b border-slate-100 hidden print:block">
+          <h2 class="text-lg font-bold">LAPORAN KEHADIRAN — MA NAHDHIYAH TALUN</h2>
+          <p class="text-xs text-slate-600">Dicetak otomatis melalui Sistem Absensi Digital MA Nahdhiyah Talun</p>
+        </div>
+        <table class="w-full text-sm text-left">
+          <thead class="bg-slate-50 text-slate-600 text-xs uppercase">
+            <tr>
+              <th class="px-4 py-3">Tanggal</th>
+              <th class="px-4 py-3">ID (NISN/PegID)</th>
+              <th class="px-4 py-3">Nama</th>
+              <th class="px-4 py-3">Kategori / Unit</th>
+              <th class="px-4 py-3">Masuk</th>
+              <th class="px-4 py-3">Pulang</th>
+              <th class="px-4 py-3">Status</th>
+            </tr>
+          </thead>
+          <tbody id="reportTableBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Hidden Print Area for Barcode Cards -->
+    <div id="barcodePrintModal" class="hidden"></div>
+  </main>
+
+  <script>
+    // --- SERVICE WORKER REGISTRATION ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
+      });
+    }
+
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById('btnInstallPwa');
+      btn.classList.remove('hidden');
+      btn.classList.add('inline-flex');
+    });
+
+    async function installPWA() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      document.getElementById('btnInstallPwa').classList.add('hidden');
+    }
+
+    // --- INITIAL DATA & STATE ---
+    const TODAY = new Date().toISOString().split('T')[0];
+    const WALI_KELAS_MAP = {
+      'XII IPA 1': { nama: 'Ust. Ahmad Fauzan, M.Pd', wa: '6281234567801' },
+      'XI IPS 1': { nama: 'Ustdz. Nurul Hidayah, S.Pd', wa: '6281234567802' },
+      'X-A': { nama: 'Drs. H. Mahfudz', wa: '6281234567803' }
+    };
+
+    const DEFAULT_MASTER = [
+      { id: '0081234501', type: 'Siswa', name: 'Ahmad Fauzi Ramadhan', unit: 'XII IPA 1', wali: 'Bpk. H. Sulaiman', wa: '6281298765401' },
+      { id: '0081234502', type: 'Siswa', name: 'Siti Aisyah Putri', unit: 'XII IPA 1', wali: 'Ibu Hj. Fatimah', wa: '6281298765402' },
+      { id: '0081234503', type: 'Siswa', name: 'Muhammad Rizky Pratama', unit: 'XI IPS 1', wali: 'Bpk. Hendra Wijaya', wa: '6281298765403' },
+      { id: '0081234504', type: 'Siswa', name: 'Zahra Nabila Khairunnisa', unit: 'X-A', wali: 'Ibu Siti Aminah', wa: '6281298765404' },
+      { id: 'PEG-202601', type: 'Guru', name: 'Drs. H. Mahfudz', unit: 'Kepala Madrasah / Wali X-A', wali: '-', wa: '6281234567803' },
+      { id: 'PEG-202602', type: 'Guru', name: 'Ust. Ahmad Fauzan, M.Pd', unit: 'Guru Fisika / Wali XII IPA 1', wali: '-', wa: '6281234567801' },
+      { id: 'PEG-202603', type: 'Tendik', name: 'M. Syafi'i, S.Kom', unit: 'Operator Tata Usaha', wali: '-', wa: '6281234567899' }
+    ];
+
+    const DEFAULT_ATTENDANCE = [
+      { date: TODAY, id: '0081234501', name: 'Ahmad Fauzi Ramadhan', type: 'Siswa', unit: 'XII IPA 1', inTime: '06:48', outTime: '-', status: 'Hadir', note: 'Tepat Waktu' },
+      { date: TODAY, id: '0081234503', name: 'Muhammad Rizky Pratama', type: 'Siswa', unit: 'XI IPS 1', inTime: '07:12', outTime: '-', status: 'Terlambat', note: 'Terlambat 12 menit' },
+      { date: TODAY, id: 'PEG-202601', name: 'Drs. H. Mahfudz', type: 'Guru', unit: 'Kepala Madrasah', inTime: '06:35', outTime: '-', status: 'Hadir', note: 'Tepat Waktu' }
+    ];
+
+    const DEFAULT_WA_LOGS = [
+      { id: 1, time: '06:48', target: 'Bpk. H. Sulaiman (Wali Ahmad Fauzi)', phone: '6281298765401', message: 'Assalamu'alaikum Wr. Wb. Ananda Ahmad Fauzi Ramadhan (XII IPA 1) telah ABSEN MASUK di MA Nahdhiyah Talun pukul 06:48 WIB (Tepat Waktu).', status: 'Terkirim' },
+      { id: 2, time: '07:12', target: 'Bpk. Hendra Wijaya (Wali M. Rizky)', phone: '6281298765403', message: 'Assalamu'alaikum Wr. Wb. Ananda Muhammad Rizky Pratama (XI IPS 1) tercatat TERLAMBAT masuk pukul 07:12 WIB.', status: 'Gagal' }
+    ];
+
+    let state = {
+      role: 'admin',
+      activeTab: 'dashboard',
+      scanMode: 'MASUK',
+      master: JSON.parse(localStorage.getItem('mant_master')) || DEFAULT_MASTER,
+      attendance: JSON.parse(localStorage.getItem('mant_attendance')) || DEFAULT_ATTENDANCE,
+      waLogs: JSON.parse(localStorage.getItem('mant_walogs')) || DEFAULT_WA_LOGS,
+      docs: JSON.parse(localStorage.getItem('mant_docs')) || []
+    };
+
+    function saveState() {
+      localStorage.setItem('mant_master', JSON.stringify(state.master));
+      localStorage.setItem('mant_attendance', JSON.stringify(state.attendance));
+      localStorage.setItem('mant_walogs', JSON.stringify(state.waLogs));
+      localStorage.setItem('mant_docs', JSON.stringify(state.docs));
+    }
+
+    function resetDemoData() {
+      localStorage.clear();
+      location.reload();
+    }
+
+    // --- UTILITIES ---
+    function normalizePhone(raw) {
+      let clean = String(raw || '').replace(/[^0-9]/g, '');
+      if (clean.startsWith('0')) clean = '62' + clean.slice(1);
+      else if (clean.startsWith('8')) clean = '62' + clean;
+      return clean;
+    }
+
+    function getCurrentTime() {
+      const now = new Date();
+      return now.toTimeString().slice(0, 5);
+    }
+
+    function showToast(msg, type = 'success') {
+      const box = document.getElementById('toastBox');
+      const styles = type === 'error'
+        ? 'bg-rose-900 text-white border-rose-700'
+        : 'bg-emerald-900 text-white border-emerald-700';
+      box.className = `fixed bottom-5 right-5 z-50 max-w-sm w-full rounded-xl shadow-2xl border p-4 text-sm font-semibold ${styles}`;
+      box.textContent = msg;
+      box.classList.remove('hidden');
+      setTimeout(() => box.classList.add('hidden'), 3500);
+    }
+
+    function playBeep(success = true) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = success ? 880 : 240;
+        gain.gain.value = 0.1;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        setTimeout(() => { osc.stop(); ctx.close(); }, success ? 150 : 350);
+      } catch (e) {}
+    }
+
+    // --- NAVIGATION & ROLE ACCESS ---
+    const TABS_CONFIG = [
+      { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', roles: ['admin', 'piket', 'walikelas', 'guru'] },
+      { id: 'scan', label: 'Scan Kios Gerbang', icon: 'qr-code', roles: ['admin', 'piket'] },
+      { id: 'walikelas', label: 'Wali Kelas', icon: 'users', roles: ['admin', 'walikelas'] },
+      { id: 'walimurid', label: 'Portal Wali Murid', icon: 'heart-handshake', roles: ['admin', 'walimurid'] },
+      { id: 'master', label: 'Data Master & Kartu', icon: 'id-card', roles: ['admin'] },
+      { id: 'whatsapp', label: 'WA Gateway & Log', icon: 'message-circle', roles: ['admin', 'piket'] },
+      { id: 'laporan', label: 'Rekap & Laporan', icon: 'file-bar-chart', roles: ['admin', 'piket', 'walikelas', 'guru'] }
+    ];
+
+    function renderNav() {
+      const container = document.getElementById('navTabsContainer');
+      const allowedTabs = TABS_CONFIG.filter(t => t.roles.includes(state.role));
+      if (!allowedTabs.some(t => t.id === state.activeTab)) {
+        state.activeTab = allowedTabs[0].id;
+      }
+      container.innerHTML = allowedTabs.map(t => `
+        <button onclick="switchTab('${t.id}')" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+          state.activeTab === t.id
+            ? 'bg-emerald-600 text-white shadow'
+            : 'text-emerald-200 hover:bg-emerald-900/80 hover:text-white'
+        }">
+          <i data-lucide="${t.icon}" class="w-3.5 h-3.5"></i> ${t.label}
+        </button>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function switchRole(role) {
+      state.role = role;
+      renderNav();
+      switchTab(state.activeTab);
+    }
+
+    function switchTab(tabId) {
+      state.activeTab = tabId;
+      TABS_CONFIG.forEach(t => {
+        const el = document.getElementById('tab-' + t.id);
+        if (el) el.classList.toggle('hidden', t.id !== tabId);
+      });
+      renderNav();
+      refreshAllViews();
+      if (tabId === 'scan') {
+        setTimeout(() => document.getElementById('scanInput')?.focus(), 100);
+      }
+    }
+
+    // --- CORE ATTENDANCE & REAL WHATSAPP GATEWAY LOGIC ---
+    const DEFAULT_WA_CFG = {
+      endpoint: 'https://api.fonnte.com/send',
+      token: '',
+      sender: '6281234567890',
+      autoWebFallback: true
+    };
+    let waConfig = Object.assign({}, DEFAULT_WA_CFG, JSON.parse(localStorage.getItem('mant_wa_cfg') || '{}'));
+
+    function syncGatewayInputs() {
+      const ep = document.getElementById('waEndpoint');
+      const tk = document.getElementById('waToken');
+      const sd = document.getElementById('waSender');
+      const fb = document.getElementById('waAutoWebFallback');
+      const badge = document.getElementById('waBadgeStatus');
+      if (ep) ep.value = waConfig.endpoint || 'https://api.fonnte.com/send';
+      if (tk) tk.value = waConfig.token || '';
+      if (sd) sd.value = waConfig.sender || '';
+      if (fb) fb.checked = Boolean(waConfig.autoWebFallback);
+      if (badge) {
+        if (waConfig.token && waConfig.token.trim().length > 5) {
+          badge.className = 'text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full';
+          badge.textContent = 'API Token Aktif';
+        } else {
+          badge.className = 'text-[11px] font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full';
+          badge.textContent = 'Mode WA Web / Isi Token';
+        }
+      }
+    }
+
+    function saveGatewayConfig() {
+      waConfig = {
+        endpoint: (document.getElementById('waEndpoint')?.value || '').trim() || 'https://api.fonnte.com/send',
+        token: (document.getElementById('waToken')?.value || '').trim(),
+        sender: (document.getElementById('waSender')?.value || '').trim(),
+        autoWebFallback: Boolean(document.getElementById('waAutoWebFallback')?.checked)
+      };
+      localStorage.setItem('mant_wa_cfg', JSON.stringify(waConfig));
+      syncGatewayInputs();
+    }
+
+    function openWhatsAppChat(phone, message) {
+      const cleanPhone = normalizePhone(phone);
+      if (!cleanPhone) return;
+      const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+
+    async function dispatchWhatsAppMessage(targetName, phone, message, logId = null, allowAutoOpen = true) {
+      saveGatewayConfig();
+      const cleanPhone = normalizePhone(phone);
+      const timeNow = getCurrentTime();
+      let entry = logId ? state.waLogs.find(l => l.id === logId) : null;
+
+      if (!entry) {
+        entry = {
+          id: Date.now() + Math.random(),
+          time: timeNow,
+          target: targetName,
+          phone: cleanPhone,
+          message,
+          status: 'Mengirim...'
+        };
+        state.waLogs.unshift(entry);
+      } else {
+        entry.time = timeNow;
+        entry.status = 'Mengirim...';
+      }
+      saveState();
+      renderWALogs();
+
+      if (!cleanPhone) {
+        entry.status = 'Nomor Tidak Valid';
+        saveState();
+        renderWALogs();
+        return;
+      }
+
+      if (waConfig.token) {
+        try {
+          const isFonnte = waConfig.endpoint.includes('fonnte.com');
+          let response;
+          if (isFonnte) {
+            const formData = new URLSearchParams();
+            formData.append('target', cleanPhone);
+            formData.append('message', message);
+            formData.append('countryCode', '62');
+            response = await fetch(waConfig.endpoint, {
+              method: 'POST',
+              headers: {
+                'Authorization': waConfig.token,
+                'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: formData.toString()
+            });
+          } else {
+            response = await fetch(waConfig.endpoint, {
+              method: 'POST',
+              headers: {
+                'Authorization': waConfig.token.startsWith('Bearer ') ? waConfig.token : `Bearer ${waConfig.token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                target: cleanPhone,
+                phone: cleanPhone,
+                sender: waConfig.sender,
+                message
+              })
+            });
+          }
+
+          const rawText = await response.text();
+          let data = {};
+          try { data = JSON.parse(rawText); } catch (_) {}
+
+          const apiFailed = !response.ok || data.status === false || data.success === false;
+          if (!apiFailed) {
+            entry.status = 'Terkirim API';
+            saveState();
+            renderWALogs();
+            showToast(`Pesan WA terkirim via API ke ${cleanPhone}`, 'success');
+            return;
+          }
+
+          entry.status = `Gagal API (${data.reason || response.status})`;
+          saveState();
+          renderWALogs();
+          showToast(`API Gateway gagal: ${data.reason || response.status}`, 'error');
+          if (allowAutoOpen && waConfig.autoWebFallback) {
+            openWhatsAppChat(cleanPhone, message);
+          }
+          return;
+        } catch (err) {
+          entry.status = 'Gagal Koneksi / CORS';
+          saveState();
+          renderWALogs();
+          showToast('Tidak dapat menghubungi API Gateway dari browser (cek token/CORS).', 'error');
+          if (allowAutoOpen && waConfig.autoWebFallback) {
+            openWhatsAppChat(cleanPhone, message);
+          }
+          return;
+        }
+      }
+
+      // Tanpa Token API: siapkan tautan wa.me asli agar bisa dikirim langsung ke nomor tujuan
+      entry.status = 'Siap Kirim WA';
+      saveState();
+      renderWALogs();
+      if (allowAutoOpen && waConfig.autoWebFallback) {
+        openWhatsAppChat(cleanPhone, message);
+        showToast(`Membuka chat WhatsApp ke ${cleanPhone}. Tekan Kirim di WhatsApp.`, 'success');
+      } else {
+        showToast('Isi API Token di tab WA Gateway atau klik "Buka di WA" pada log.', 'error');
+      }
+    }
+
+    function queueWhatsApp(targetName, phone, message) {
+      dispatchWhatsAppMessage(targetName, phone, message, null, true);
+    }
+
+    function processAttendance(personId, modeOrStatus, customNote = '') {
+      const person = state.master.find(p => p.id.toLowerCase() === personId.trim().toLowerCase());
+      if (!person) {
+        playBeep(false);
+        return { ok: false, msg: `ID "${personId}" tidak ditemukan di database MA Nahdhiyah Talun.` };
+      }
+
+      const nowTime = getCurrentTime();
+      let record = state.attendance.find(a => a.date === TODAY && a.id === person.id);
+
+      if (modeOrStatus === 'MASUK') {
+        if (record && record.inTime !== '-') {
+          playBeep(false);
+          return { ok: false, msg: `${person.name} sudah melakukan Absen Masuk hari ini pukul ${record.inTime} WIB.` };
+        }
+        const isLate = nowTime > '07:00';
+        const status = isLate ? 'Terlambat' : 'Hadir';
+        const note = isLate ? 'Terlambat melewati 07:00' : 'Tepat Waktu';
+        if (record) {
+          record.inTime = nowTime;
+          record.status = status;
+          record.note = note;
+        } else {
+          state.attendance.unshift({
+            date: TODAY, id: person.id, name: person.name, type: person.type,
+            unit: person.unit, inTime: nowTime, outTime: '-', status, note
+          });
+        }
+        if (person.type === 'Siswa') {
+          const tpl = document.getElementById('tplMasuk').value
+            .replace('{nama_siswa}', person.name)
+            .replace('{nisn}', person.id)
+            .replace('{kelas}', person.unit)
+            .replace('{status}', `ABSEN MASUK (${status})`)
+            .replace('{tanggal}', TODAY)
+            .replace('{jam}', nowTime);
+          queueWhatsApp(`${person.wali} (Wali ${person.name})`, person.wa, tpl);
+        }
+        playBeep(true);
+        saveState();
+        refreshAllViews();
+        return { ok: true, person, status, time: nowTime, mode: 'MASUK' };
+      }
+
+      if (modeOrStatus === 'PULANG') {
+        if (!record || record.inTime === '-') {
+          playBeep(false);
+          return { ok: false, msg: `${person.name} belum melakukan Absen Masuk hari ini.` };
+        }
+        if (record.outTime !== '-') {
+          playBeep(false);
+          return { ok: false, msg: `${person.name} sudah melakukan Absen Pulang pukul ${record.outTime} WIB.` };
+        }
+        record.outTime = nowTime;
+        if (person.type === 'Siswa') {
+          const tpl = document.getElementById('tplMasuk').value
+            .replace('{nama_siswa}', person.name)
+            .replace('{nisn}', person.id)
+            .replace('{kelas}', person.unit)
+            .replace('{status}', 'ABSEN PULANG')
+            .replace('{tanggal}', TODAY)
+            .replace('{jam}', nowTime);
+          queueWhatsApp(`${person.wali} (Wali ${person.name})`, person.wa, tpl);
+        }
+        playBeep(true);
+        saveState();
+        refreshAllViews();
+        return { ok: true, person, status: 'Pulang', time: nowTime, mode: 'PULANG' };
+      }
+
+      // Manual Status (Sakit, Izin, Alpha, Dinas Luar)
+      if (record) {
+        record.status = modeOrStatus;
+        record.note = customNote || modeOrStatus;
+      } else {
+        state.attendance.unshift({
+          date: TODAY, id: person.id, name: person.name, type: person.type,
+          unit: person.unit, inTime: '-', outTime: '-', status: modeOrStatus, note: customNote || modeOrStatus
+        });
+      }
+
+      if (person.type === 'Siswa' && ['Sakit', 'Izin', 'Alpha'].includes(modeOrStatus)) {
+        queueWhatsApp(
+          `${person.wali} (Wali ${person.name})`,
+          person.wa,
+          `Assalamu'alaikum Wr. Wb. Diinformasikan kepada Wali Murid bahwa ananda *${person.name}* (${person.unit}) tercatat *${modeOrStatus.toUpperCase()}* pada ${TODAY}. Ket: ${customNote || '-'}.`
+        );
+        const wk = WALI_KELAS_MAP[person.unit];
+        if (wk) {
+          const wkMsg = document.getElementById('tplWaliKelas').value
+            .replace('{nama_siswa}', person.name)
+            .replace('{kelas}', person.unit)
+            .replace('{status}', modeOrStatus.toUpperCase())
+            .replace('{tanggal}', TODAY)
+            .replace('{jam}', nowTime);
+          queueWhatsApp(`${wk.nama} (Wali Kelas ${person.unit})`, wk.wa, wkMsg);
+        }
+      }
+
+      playBeep(true);
+      saveState();
+      refreshAllViews();
+      return { ok: true, person, status: modeOrStatus, time: nowTime, mode: 'MANUAL' };
+    }
+
+    // --- SCANNER UI ---
+    function setScanMode(mode) {
+      state.scanMode = mode;
+      const inBtn = document.getElementById('modeMasukBtn');
+      const outBtn = document.getElementById('modePulangBtn');
+      if (mode === 'MASUK') {
+        inBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-700 text-white shadow';
+        outBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600';
+      } else {
+        outBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-600 text-white shadow';
+        inBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600';
+      }
+      document.getElementById('scanInput').focus();
+    }
+
+    function handleScanSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('scanInput');
+      if (!input.value.trim()) return;
+      triggerQuickScan(input.value.trim());
+      input.value = '';
+      input.focus();
+    }
+
+    function triggerQuickScan(code) {
+      const res = processAttendance(code, state.scanMode);
+      const card = document.getElementById('scanFeedbackCard');
+      if (!res.ok) {
+        card.className = 'bg-rose-50 rounded-2xl border-2 border-rose-500 shadow-sm p-6 text-center space-y-2';
+        card.innerHTML = `
+          <div class="w-14 h-14 rounded-full bg-rose-600 text-white mx-auto flex items-center justify-center">
+            <i data-lucide="x-circle" class="w-8 h-8"></i>
+          </div>
+          <h3 class="font-extrabold text-rose-800 text-lg">Absensi Gagal</h3>
+          <p class="text-sm text-rose-700 font-medium">${res.msg}</p>
+        `;
+      } else {
+        card.className = 'bg-emerald-50 rounded-2xl border-2 border-emerald-500 shadow-sm p-6 text-center space-y-2';
+        card.innerHTML = `
+          <div class="w-14 h-14 rounded-full bg-emerald-600 text-white mx-auto flex items-center justify-center">
+            <i data-lucide="check-circle-2" class="w-8 h-8"></i>
+          </div>
+          <span class="inline-block text-xs font-bold uppercase px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900">${res.person.type} • ${res.person.unit}</span>
+          <h3 class="font-extrabold text-slate-900 text-xl">${res.person.name}</h3>
+          <p class="text-sm font-bold text-emerald-700">${res.mode} — Pukul ${res.time} WIB (${res.status})</p>
+          ${res.person.type === 'Siswa' ? `<p class="text-xs text-slate-600 pt-1">Notifikasi WhatsApp terkirim ke <strong>${res.person.wali}</strong> (${res.person.wa})</p>` : ''}
+        `;
+      }
+      lucide.createIcons();
+    }
+
+    let html5QrScanner = null;
+    function startCameraScanner() {
+      const btnStart = document.getElementById('btnStartCam');
+      const btnStop = document.getElementById('btnStopCam');
+      btnStart.classList.add('hidden');
+      btnStop.classList.remove('hidden');
+      html5QrScanner = new Html5Qrcode("reader");
+      html5QrScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 140 } },
+        (decodedText) => {
+          triggerQuickScan(decodedText);
+        }
+      ).catch(() => {
+        document.getElementById('reader').innerHTML = '<p class="p-4 text-rose-600 font-semibold">Kamera tidak dapat diakses. Pastikan izin kamera aktif atau gunakan Simulasi Cepat.</p>';
+      });
+    }
+
+    function stopCameraScanner() {
+      if (html5QrScanner) {
+        html5QrScanner.stop().then(() => {
+          document.getElementById('reader').innerHTML = 'Kamera dimatikan.';
+        }).catch(() => {});
+      }
+      document.getElementById('btnStartCam').classList.remove('hidden');
+      document.getElementById('btnStopCam').classList.add('hidden');
+    }
+
+    // --- MANUAL STATUS FORM ---
+    function submitManualStatus(e) {
+      e.preventDefault();
+      const id = document.getElementById('manualPersonSelect').value;
+      const st = document.getElementById('manualStatusSelect').value;
+      const note = document.getElementById('manualNoteInput').value;
+      const mode = st === 'Hadir' ? 'MASUK' : (st === 'Pulang' ? 'PULANG' : st);
+      const res = processAttendance(id, mode, note);
+      if (res.ok) {
+        showToast(`Status ${res.person.name} (${res.status}) berhasil dicatat & notifikasi WA dikirim!`, 'success');
+        document.getElementById('manualNoteInput').value = '';
+      } else {
+        showToast(res.msg, 'error');
+      }
+    }
+
+    // --- PORTAL WALI MURID UPLOAD (MAX 1 MB) ---
+    function validateFileSize(input) {
+      const info = document.getElementById('fileSizeInfo');
+      const file = input.files[0];
+      if (!file) return;
+      const maxBytes = 1024 * 1024; // 1 MB
+      if (file.size > maxBytes) {
+        info.className = 'text-xs font-bold text-rose-600 mt-1';
+        info.textContent = `Ukuran file ${(file.size / 1024 / 1024).toFixed(2)} MB melebihi batas maksimal 1 MB!`;
+        input.value = '';
+      } else {
+        info.className = 'text-xs font-semibold text-emerald-700 mt-1';
+        info.textContent = `File valid: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      }
+    }
+
+    function handleUploadIzin(e) {
+      e.preventDefault();
+      const studentId = document.getElementById('portalStudentSelect').value;
+      const student = state.master.find(s => s.id === studentId);
+      const jenis = document.getElementById('uploadJenis').value;
+      const note = document.getElementById('uploadNote').value;
+      const fileInput = document.getElementById('uploadFile');
+      const file = fileInput.files[0];
+      if (!file || file.size > 1024 * 1024) {
+        showToast('Pilih file surat yang valid (maksimal 1 MB).', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        state.docs.unshift({
+          id: Date.now(),
+          date: TODAY,
+          studentId: student.id,
+          studentName: student.name,
+          unit: student.unit,
+          jenis,
+          note,
+          fileName: file.name,
+          fileSizeKB: (file.size / 1024).toFixed(1),
+          dataUrl: ev.target.result,
+          verified: false
+        });
+
+        const wk = WALI_KELAS_MAP[student.unit];
+        if (wk) {
+          queueWhatsApp(
+            `${wk.nama} (Wali Kelas ${student.unit})`,
+            wk.wa,
+            `Pengajuan ${jenis.toUpperCase()} baru dari Wali Murid *${student.name}* (${student.unit}). Lampiran: ${file.name}. Silakan verifikasi di menu Wali Kelas.`
+          );
+        }
+
+        saveState();
+        refreshAllViews();
+        e.target.reset();
+        document.getElementById('fileSizeInfo').textContent = 'Batas ukuran maksimal: 1.00 MB (1.024 KB)';
+        showToast('Surat berhasil diunggah & diteruskan ke Wali Kelas!', 'success');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function verifyDoc(docId) {
+      const doc = state.docs.find(d => d.id === docId);
+      if (!doc) return;
+      doc.verified = true;
+      processAttendance(doc.studentId, doc.jenis, `Surat terverifikasi (${doc.fileName})`);
+      showToast(`Dokumen ${doc.studentName} diverifikasi & absensi diperbarui!`, 'success');
+    }
+
+    // --- MASTER DATA & BARCODE ---
+    function addMasterRecord(e) {
+      e.preventDefault();
+      const type = document.getElementById('newType').value;
+      const id = document.getElementById('newId').value.trim();
+      const name = document.getElementById('newName').value.trim();
+      const unit = document.getElementById('newUnit').value.trim();
+      const wa = normalizePhone(document.getElementById('newWa').value);
+      if (state.master.some(m => m.id === id)) {
+        showToast('NISN / PegID sudah terdaftar!', 'error');
+        return;
+      }
+      state.master.push({ id, type, name, unit, wali: type === 'Siswa' ? 'Wali ' + name : '-', wa });
+      saveState();
+      refreshAllViews();
+      e.target.reset();
+      showToast('Data berhasil ditambahkan!', 'success');
+    }
+
+    function deleteMaster(id) {
+      state.master = state.master.filter(m => m.id !== id);
+      saveState();
+      refreshAllViews();
+    }
+
+    function printBarcodeCards() {
+      const area = document.getElementById('printArea');
+      const originalHtml = area.innerHTML;
+      area.innerHTML = `
+        <div class="grid grid-cols-2 gap-4">
+          ${state.master.map(m => `
+            <div class="border-2 border-emerald-800 rounded-xl p-4 text-center space-y-1">
+              <p class="text-[10px] font-extrabold uppercase text-emerald-800">KARTU ABSENSI DIGITAL — MA NAHDHIYAH TALUN</p>
+              <p class="font-bold text-sm">${m.name}</p>
+              <p class="text-xs text-slate-600">${m.type} • ${m.unit}</p>
+              <svg id="bc-print-${m.id.replace(/[^a-zA-Z0-9]/g,'')}" class="mx-auto"></svg>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      state.master.forEach(m => {
+        try {
+          JsBarcode(`#bc-print-${m.id.replace(/[^a-zA-Z0-9]/g,'')}`, m.id, { height: 40, width: 1.6, fontSize: 12 });
+        } catch (e) {}
+      });
+      window.print();
+      area.innerHTML = originalHtml;
+      renderReportTable();
+    }
+
+    // --- EXCEL EXPORTS ---
+    function exportMasterExcel() {
+      const ws = XLSX.utils.json_to_sheet(state.master);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'DataMaster');
+      XLSX.writeFile(wb, 'Master_Data_MA_Nahdhiyah_Talun.xlsx');
+    }
+
+    function exportReportExcel() {
+      const ws = XLSX.utils.json_to_sheet(state.attendance);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'RekapAbsensi');
+      XLSX.writeFile(wb, `Laporan_Absensi_MANT_${TODAY}.xlsx`);
+    }
+
+    // --- WA GATEWAY ACTIONS ---
+    function sendTestWA() {
+      const num = document.getElementById('waTestNumber').value;
+      if (!num) return showToast('Masukkan nomor tujuan tes WA.', 'error');
+      const msg = "Assalamu'alaikum Wr. Wb. Ini adalah pesan uji coba Gateway Sistem Absensi MA Nahdhiyah Talun.";
+      dispatchWhatsAppMessage('Tes Koneksi Gateway', num, msg, null, true);
+    }
+
+    function resendWA(logId) {
+      const log = state.waLogs.find(l => l.id === logId);
+      if (log) {
+        dispatchWhatsAppMessage(log.target, log.phone, log.message, log.id, true);
+      }
+    }
+
+    function openLogInWA(logId) {
+      const log = state.waLogs.find(l => l.id === logId);
+      if (log) {
+        openWhatsAppChat(log.phone, log.message);
+      }
+    }
+
+    // --- RENDERING ALL VIEWS ---
+    function refreshAllViews() {
+      document.getElementById('todayDateBadge').textContent = TODAY;
+
+      // Dropdowns
+      const personOpts = state.master.map(p => `<option value="${p.id}">[${p.type}] ${p.name} (${p.unit})</option>`).join('');
+      document.getElementById('manualPersonSelect').innerHTML = personOpts;
+
+      const studentOpts = state.master.filter(p => p.type === 'Siswa').map(s => `<option value="${s.id}">${s.name} — ${s.unit} (${s.id})</option>`).join('');
+      const portalSel = document.getElementById('portalStudentSelect');
+      const prevVal = portalSel.value;
+      portalSel.innerHTML = studentOpts;
+      if (prevVal) portalSel.value = prevVal;
+
+      // Dashboard KPI Siswa
+      const siswaMaster = state.master.filter(m => m.type === 'Siswa');
+      const siswaToday = state.attendance.filter(a => a.date === TODAY && a.type === 'Siswa');
+      const countStatus = (list, st) => list.filter(x => x.status === st).length;
+      const kpiSiswa = [
+        { label: 'Total Siswa', val: siswaMaster.length, color: 'bg-slate-800 text-white' },
+        { label: 'Hadir Tepat', val: countStatus(siswaToday, 'Hadir'), color: 'bg-emerald-600 text-white' },
+        { label: 'Terlambat', val: countStatus(siswaToday, 'Terlambat'), color: 'bg-amber-500 text-white' },
+        { label: 'Sakit', val: countStatus(siswaToday, 'Sakit'), color: 'bg-sky-600 text-white' },
+        { label: 'Izin', val: countStatus(siswaToday, 'Izin'), color: 'bg-indigo-600 text-white' },
+        { label: 'Alpha', val: countStatus(siswaToday, 'Alpha'), color: 'bg-rose-600 text-white' }
+      ];
+      document.getElementById('kpiSiswaGrid').innerHTML = kpiSiswa.map(k => `
+        <div class="${k.color} rounded-2xl p-4 shadow-sm">
+          <p class="text-xs opacity-85 font-semibold">${k.label}</p>
+          <p class="text-2xl font-extrabold mt-1">${k.val}</p>
+        </div>
+      `).join('');
+
+      // Dashboard KPI Guru & Tendik
+      const gtMaster = state.master.filter(m => m.type !== 'Siswa');
+      const gtToday = state.attendance.filter(a => a.date === TODAY && a.type !== 'Siswa');
+      const kpiGuru = [
+        { label: 'Total Guru & Tendik', val: gtMaster.length },
+        { label: 'Hadir', val: countStatus(gtToday, 'Hadir') + countStatus(gtToday, 'Terlambat') },
+        { label: 'Dinas Luar', val: countStatus(gtToday, 'Dinas Luar') },
+        { label: 'Izin / Sakit', val: countStatus(gtToday, 'Izin') + countStatus(gtToday, 'Sakit') }
+      ];
+      document.getElementById('kpiGuruGrid').innerHTML = kpiGuru.map(k => `
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+          <p class="text-xs text-slate-500 font-semibold">${k.label}</p>
+          <p class="text-2xl font-extrabold text-slate-800 mt-1">${k.val}</p>
+        </div>
+      `).join('');
+
+      // Recent Logs
+      document.getElementById('recentLogsList').innerHTML = state.attendance.slice(0, 12).map(a => `
+        <div class="px-5 py-3.5 flex items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-bold text-slate-800">${a.name} <span class="text-xs font-normal text-slate-500">(${a.unit})</span></p>
+            <p class="text-xs text-slate-500">${a.date} • Masuk: <strong>${a.inTime}</strong> • Pulang: <strong>${a.outTime}</strong></p>
+          </div>
+          <span class="text-xs font-bold px-2.5 py-1 rounded-full ${
+            a.status === 'Hadir' ? 'bg-emerald-100 text-emerald-800' :
+            a.status === 'Terlambat' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-800'
+          }">${a.status}</span>
+        </div>
+      `).join('');
+
+      renderWaliKelas();
+      renderPortalWaliMurid();
+      renderMasterTable();
+      renderWALogs();
+      renderReportTable();
+      lucide.createIcons();
+    }
+
+    function renderWaliKelas() {
+      const kelas = document.getElementById('waliKelasFilter').value;
+      const docs = state.docs.filter(d => d.unit === kelas);
+      document.getElementById('pendingDocCount').textContent = `${docs.filter(d => !d.verified).length} Menunggu`;
+      document.getElementById('waliKelasDocsList').innerHTML = docs.length ? docs.map(d => `
+        <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">${d.jenis}</span>
+            <p class="font-bold text-sm text-slate-800 mt-1">${d.studentName} (${d.date})</p>
+            <p class="text-xs text-slate-600">${d.note} — File: <strong>${d.fileName}</strong> (${d.fileSizeKB} KB)</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <a href="${d.dataUrl}" download="${d.fileName}" class="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg">Unduh Lampiran</a>
+            ${d.verified
+              ? '<span class="text-xs font-bold text-emerald-700">✓ Terverifikasi</span>'
+              : `<button onclick="verifyDoc(${d.id})" class="text-xs font-bold bg-emerald-700 text-white px-3 py-1.5 rounded-lg">Setujui & Catat</button>`}
+          </div>
+        </div>
+      `).join('') : '<p class="p-4 text-xs text-slate-500">Belum ada pengajuan surat izin pada kelas ini.</p>';
+
+      const students = state.master.filter(m => m.type === 'Siswa' && m.unit === kelas);
+      document.getElementById('waliKelasStudentTable').innerHTML = students.map(s => {
+        const att = state.attendance.find(a => a.date === TODAY && a.id === s.id);
+        return `
+          <tr>
+            <td class="px-4 py-3 font-mono text-xs">${s.id}</td>
+            <td class="px-4 py-3 font-bold">${s.name}</td>
+            <td class="px-4 py-3 text-xs">${s.wali}<br><span class="text-slate-500">${s.wa}</span></td>
+            <td class="px-4 py-3"><span class="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100">${att ? att.status : 'Belum Absen'}</span></td>
+            <td class="px-4 py-3">
+              <button onclick="processAttendance('${s.id}', 'Izin', 'Dicatat Wali Kelas')" class="text-xs font-bold text-indigo-700 hover:underline mr-2">Catat Izin</button>
+              <button onclick="processAttendance('${s.id}', 'Sakit', 'Dicatat Wali Kelas')" class="text-xs font-bold text-sky-700 hover:underline">Catat Sakit</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderPortalWaliMurid() {
+      const sid = document.getElementById('portalStudentSelect').value;
+      const history = state.attendance.filter(a => a.id === sid);
+      document.getElementById('portalStudentSummary').innerHTML = [
+        { l: 'Hadir', v: history.filter(h => h.status === 'Hadir').length },
+        { l: 'Terlambat', v: history.filter(h => h.status === 'Terlambat').length },
+        { l: 'Sakit', v: history.filter(h => h.status === 'Sakit').length },
+        { l: 'Izin', v: history.filter(h => h.status === 'Izin').length }
+      ].map(x => `<div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5"><p class="text-[11px] text-slate-500">${x.l}</p><p class="font-extrabold text-base">${x.v}</p></div>`).join('');
+
+      document.getElementById('portalHistoryTable').innerHTML = history.length ? history.map(h => `
+        <tr>
+          <td class="px-3 py-2">${h.date}</td>
+          <td class="px-3 py-2 font-semibold">${h.inTime}</td>
+          <td class="px-3 py-2 font-semibold">${h.outTime}</td>
+          <td class="px-3 py-2 font-bold text-emerald-700">${h.status}</td>
+        </tr>
+      `).join('') : '<tr><td colspan="4" class="px-3 py-4 text-center text-slate-400">Belum ada riwayat absensi.</td></tr>';
+
+      const myDocs = state.docs.filter(d => d.studentId === sid);
+      document.getElementById('portalUploadedList').innerHTML = myDocs.length ? myDocs.map(d => `
+        <div class="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 flex items-center justify-between">
+          <span><strong>${d.jenis}</strong>: ${d.fileName} (${d.fileSizeKB} KB)</span>
+          <span class="font-bold ${d.verified ? 'text-emerald-700' : 'text-amber-600'}">${d.verified ? 'Disetujui' : 'Menunggu'}</span>
+        </div>
+      `).join('') : '<p class="text-xs text-slate-400">Belum ada dokumen diunggah.</p>';
+    }
+
+    function renderMasterTable() {
+      document.getElementById('masterTableBody').innerHTML = state.master.map(m => `
+        <tr>
+          <td class="px-4 py-3"><span class="text-xs font-bold px-2 py-0.5 rounded bg-slate-100">${m.type}</span></td>
+          <td class="px-4 py-3 font-mono text-xs font-bold">${m.id}</td>
+          <td class="px-4 py-3 font-bold">${m.name}</td>
+          <td class="px-4 py-3 text-xs">${m.unit}</td>
+          <td class="px-4 py-3 text-xs">${m.wali} • ${m.wa}</td>
+          <td class="px-4 py-3"><svg id="bc-row-${m.id.replace(/[^a-zA-Z0-9]/g,'')}"></svg></td>
+          <td class="px-4 py-3"><button onclick="deleteMaster('${m.id}')" class="text-xs font-bold text-rose-600 hover:underline">Hapus</button></td>
+        </tr>
+      `).join('');
+      state.master.forEach(m => {
+        try {
+          JsBarcode(`#bc-row-${m.id.replace(/[^a-zA-Z0-9]/g,'')}`, m.id, { height: 24, width: 1.1, displayValue: false });
+        } catch (e) {}
+      });
+    }
+
+    function renderWALogs() {
+      syncGatewayInputs();
+      document.getElementById('waLogCounter').textContent = `${state.waLogs.length} Pesan`;
+      document.getElementById('waLogsContainer').innerHTML = state.waLogs.map(l => {
+        const isOk = String(l.status).includes('Terkirim');
+        const badgeCls = isOk
+          ? 'bg-emerald-100 text-emerald-800'
+          : (String(l.status).includes('Siap') ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800');
+        return `
+        <div class="p-4 flex items-start justify-between gap-3">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs font-bold text-slate-800">${l.target}</span>
+              <span class="text-[11px] font-mono text-slate-500">${l.phone}</span>
+              <span class="text-[11px] text-slate-400">• ${l.time}</span>
+            </div>
+            <p class="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">${l.message}</p>
+          </div>
+          <div class="text-right shrink-0 space-y-1">
+            <span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full ${badgeCls}">${l.status}</span>
+            <div>
+              <button onclick="openLogInWA(${l.id})" class="text-[11px] font-bold text-emerald-700 hover:underline mr-2">Buka WA</button>
+              <button onclick="resendWA(${l.id})" class="text-[11px] font-bold text-slate-700 hover:underline">Kirim Ulang</button>
+            </div>
+          </div>
+        </div>
+      `;
+      }).join('');
+    }
+
+    function renderReportTable() {
+      const q = document.getElementById('filterSearch').value.toLowerCase();
+      const role = document.getElementById('filterRole').value;
+      const st = document.getElementById('filterStatus').value;
+      const dt = document.getElementById('filterDate').value;
+
+      const filtered = state.attendance.filter(a => {
+        const matchQ = !q || a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q);
+        const matchR = role === 'ALL' || a.type === role;
+        const matchS = st === 'ALL' || a.status === st;
+        const matchD = !dt || a.date === dt;
+        return matchQ && matchR && matchS && matchD;
+      });
+
+      document.getElementById('reportTableBody').innerHTML = filtered.map(a => `
+        <tr>
+          <td class="px-4 py-3 text-xs">${a.date}</td>
+          <td class="px-4 py-3 font-mono text-xs">${a.id}</td>
+          <td class="px-4 py-3 font-bold">${a.name}</td>
+          <td class="px-4 py-3 text-xs">${a.type} • ${a.unit}</td>
+          <td class="px-4 py-3 text-xs font-semibold">${a.inTime}</td>
+          <td class="px-4 py-3 text-xs font-semibold">${a.outTime}</td>
+          <td class="px-4 py-3"><span class="text-xs font-bold px-2 py-0.5 rounded bg-slate-100">${a.status}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    // Live Clock
+    setInterval(() => {
+      const now = new Date();
+      document.getElementById('liveClock').textContent = now.toLocaleDateString('id-ID', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+      }) + ' • ' + now.toTimeString().slice(0, 8) + ' WIB';
+    }, 1000);
+
+    // Boot
+    renderNav();
+    refreshAllViews();
+  </script>
+</body>
+</html>
